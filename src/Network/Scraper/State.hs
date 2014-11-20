@@ -113,7 +113,8 @@ printFormNames = do
 -- TODO: Move somewhere else???
 get :: String -> Scraper (LBS.ByteString)
 get url = do
-  liftIO . putStrLn $ "GET: " ++ url ++ "\n"
+  -- TODO: Display under debug mode
+  -- liftIO . putStrLn $ "GET: " ++ url ++ "\n"
   opts <- ST.gets currentOptions
   sesh <- ST.gets currentSession
   r <- liftIO $ Sesh.getWith opts sesh url
@@ -125,7 +126,8 @@ get url = do
 -- TODO: Move somewhere else???
 post :: Postable a => String -> a -> Scraper (LBS.ByteString)
 post url params = do
-  liftIO . putStrLn $ "POST: " ++ url ++ "\n"
+  -- TODO: Display under debug mode
+  -- liftIO . putStrLn $ "POST: " ++ url ++ "\n"
   opts <- ST.gets currentOptions
   sesh <- ST.gets currentSession
   -- liftIO . print $ params -- TODO: Make minimal repro and ask question... not sure how to print something so polymorphic
@@ -190,12 +192,13 @@ getFormBy formAttr = do
 postToForm :: FormAttr -> [(T.Text,T.Text)] -> Scraper (LBS.ByteString)
 postToForm formAttr params = do
   form <- getFormBy formAttr
-  liftIO . print $ "got form by name"
+  -- TODO: Display under debug mode
+  -- liftIO . print $ "got form by name"
   let formParams = fromMaybe (error "no params in form") (getInputs <$> form)
       formParams' = addToMap params formParams
       actionUrl = fromMaybe (error "Couldn't find action url in form") $
                   T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
-  liftIO . print $ "posting params: \n" ++ show formParams'
+  -- TODO: Display under debug mode
+  -- liftIO . print $ "posting params: \n" ++ show formParams'
   html <- post (T.unpack actionUrl) (toWreqFormParams . M.toList $ formParams')
-  liftIO . print $ "done posting to form"
   return html
