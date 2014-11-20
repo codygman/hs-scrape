@@ -16,6 +16,7 @@ import           Data.Monoid
 import qualified Data.Text                        as T
 import           Data.Text.Encoding               (encodeUtf8)
 import qualified Data.Text.IO                     as TIO
+import           Network.URL
 import           Network.Wreq                     (FormParam (..))
 import qualified Network.Wreq                     as Wreq
 import           Network.Wreq.Session             (Session (..), withSession)
@@ -31,6 +32,7 @@ data ScraperState =
      , currentHtml    :: LBS.ByteString
      , currentCursor  :: Maybe Cursor
      , currentSession :: Session
+     , currentURL     :: Maybe URL
      } deriving (Show)
 
 type Scraper = ST.StateT ScraperState IO
@@ -43,6 +45,7 @@ withInitialState callback = withSession $ \s -> do
                         , currentHtml = ("" :: LBS.ByteString)
                         , currentCursor = Nothing
                         , currentSession = s
+                        , currentURL = Nothing
                         }
   callback initialState
 
@@ -57,6 +60,12 @@ setCurrentOptions :: Wreq.Options -> Scraper ()
 setCurrentOptions o = do
    scraper <- ST.get
    ST.put $ scraper { currentOptions = o }
+
+setCurrentURL :: Maybe URL -> Scraper ()
+setCurrentURL u = ST.get >>= (\s -> ST.put $ s { currentURL = u })
+
+getCurrentURL :: Scraper(Maybe URL)
+getCurrentURL = ST.get >>= return . currentURL
 
 -- TODO: Move somewhere else???
 -- getCurrentPage :: Shpider Page
@@ -112,32 +121,58 @@ printFormNames = do
 
 -- TODO: Move somewhere else???
 get :: String -> Scraper (LBS.ByteString)
-get url = do
+get urlStr = do
+  let url = fromMaybe (error ("invalid urlStr: " ++ urlStr)) (importURL urlStr)
+      urlStr' = exportURL url
   -- TODO: Display under debug mode
   -- liftIO . putStrLn $ "GET: " ++ url ++ "\n"
   opts <- ST.gets currentOptions
   sesh <- ST.gets currentSession
-  r <- liftIO $ Sesh.getWith opts sesh url
+
+
+  r <- liftIO $ Sesh.getWith opts sesh urlStr'
   let html = r ^. Wreq.responseBody
+  setCurrentURL (Just url)
   setCurrentHtml html
   setCurrentCursor (toCursor html)
   return html
 
 -- TODO: Move somewhere else???
 post :: Postable a => String -> a -> Scraper (LBS.ByteString)
-post url params = do
-  -- TODO: should take an actual url
-  -- TODO: Make url absolute by storing host of current site
-  -- TODO: Display under debug mode
-  -- liftIO . putStrLn $ "POST: " ++ url ++ "\n"
+post urlStr params = do
   opts <- ST.gets currentOptions
   sesh <- ST.gets currentSession
-  -- liftIO . print $ params -- TODO: Make minimal repro and ask question... not sure how to print something so polymorphic
-  r <- liftIO $ Sesh.postWith opts sesh url params
+  -- TODO: should take an actual url.. makes api more difficult...
+  -- TODO: Make url absolute by storing host of current site
+  -- TODO: Display under debug mode
+  -- liftIO . print $ params
+  -- TODO: Make minimal repro and ask question... not sure how to print something so polymorphic
+  -- liftIO . putStrLn $ "POST: " ++ url ++ "\n"
+  let url = fromMaybe (error ("invalid urlStr: " ++ urlStr)) (importURL urlStr)
+  absURL <- toAbsUrl url
+  let url' = exportURL absURL
+
+  r <- liftIO $ Sesh.postWith opts sesh url' params
   let html = r ^. Wreq.responseBody
   setCurrentHtml html
   setCurrentCursor (toCursor html)
   return html
+
+toAbsUrl :: URL -> Scraper(URL)
+toAbsUrl u@(URL p@(PathRelative) _ _) = do
+  hostUrl <- getCurrentURL
+  let hostUrl' = fromMaybe (error errMsg) hostUrl
+      absUrl = u { url_type = url_type hostUrl' }
+  return absUrl
+    where errMsg = "You must 'get' or 'post' to something before making urls absolute"
+toAbsUrl u@(URL _ _ _) = return u
+
+-- TODO: Move to tests
+testToAbsUrl :: Scraper()
+testToAbsUrl = do
+  setCurrentURL (importURL "http://www.google.com")
+  aUrl <- toAbsUrl (fromJust . importURL $ "blah.php")
+  liftIO . print . exportURL $ aUrl
 
 -- TODO: Move somewhere else???
 getInputs :: Cursor -> M.Map T.Text T.Text

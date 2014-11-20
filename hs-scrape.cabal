@@ -20,6 +20,6 @@ library
   -- other-modules:       
   -- other-extensions:    
   -- TODO: Sort out dependencies... no idea how to do this yet... for now set to exacts for wreq/lens
-  build-depends:       base >=4.7 && <4.8, bytestring, text, wreq==0.2.0.0, html-conduit, xml-conduit, safe, transformers, lens==4.4.0.2, containers
+  build-depends:       base >=4.7 && <4.8, bytestring, text, wreq==0.2.0.0, html-conduit, xml-conduit, safe, transformers, lens==4.4.0.2, containers, url
   hs-source-dirs:      src
   default-language:    Haskell2010
