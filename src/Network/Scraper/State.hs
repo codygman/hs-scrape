@@ -126,6 +126,8 @@ get url = do
 -- TODO: Move somewhere else???
 post :: Postable a => String -> a -> Scraper (LBS.ByteString)
 post url params = do
+  -- TODO: should take an actual url
+  -- TODO: Make url absolute by storing host of current site
   -- TODO: Display under debug mode
   -- liftIO . putStrLn $ "POST: " ++ url ++ "\n"
   opts <- ST.gets currentOptions
