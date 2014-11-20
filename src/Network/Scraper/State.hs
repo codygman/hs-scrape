@@ -186,6 +186,14 @@ getFormBy formAttr = do
           formList (ActionUrl val) c =
             c $// element "form" >=> attributeIs "action" val
 
+fillForm :: Maybe Cursor -> [(T.Text, T.Text)] -> [FormParam]
+fillForm form params = do
+  let formParams = fromMaybe (error "no params in form") (getInputs <$> form)
+      formParams' = addToMap params formParams
+      actionUrl = fromMaybe (error "Couldn't find action url in form") $
+                  T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
+  toWreqFormParams . M.toList $ formParams'
+
 -- TODO: Move somewhere else???
 -- Takes a form name, fields to fill out in the form, then submits the form
 -- TODO: Change all[ (T.Text,T.Text)] to just be wreq formvalues... neater api anyway
@@ -194,11 +202,11 @@ postToForm formAttr params = do
   form <- getFormBy formAttr
   -- TODO: Display under debug mode
   -- liftIO . print $ "got form by name"
-  let formParams = fromMaybe (error "no params in form") (getInputs <$> form)
-      formParams' = addToMap params formParams
+  -- TODO: Turn below into fillForm or similar that takes param
+  let formParams = fillForm form params
       actionUrl = fromMaybe (error "Couldn't find action url in form") $
                   T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
   -- TODO: Display under debug mode
   -- liftIO . print $ "posting params: \n" ++ show formParams'
-  html <- post (T.unpack actionUrl) (toWreqFormParams . M.toList $ formParams')
+  html <- post (T.unpack actionUrl) formParams
   return html
