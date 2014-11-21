@@ -159,13 +159,13 @@ post urlStr params = do
   return html
 
 toAbsUrl :: URL -> Scraper(URL)
-toAbsUrl u@(URL p@(PathRelative) _ _) = do
+toAbsUrl u@(URL _ _ _) = do
   hostUrl <- getCurrentURL
   let hostUrl' = fromMaybe (error errMsg) hostUrl
       absUrl = u { url_type = url_type hostUrl' }
   return absUrl
     where errMsg = "You must 'get' or 'post' to something before making urls absolute"
-toAbsUrl u@(URL _ _ _) = return u
+-- toAbsUrl u@(URL _ _ _) = return u
 
 -- TODO: Move to tests
 testToAbsUrl :: Scraper()
