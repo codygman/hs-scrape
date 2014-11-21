@@ -177,11 +177,13 @@ testToAbsUrl = do
   aUrl <- toAbsUrl (fromJust . importURL $ "blah.php")
   liftIO . print . exportURL $ aUrl
 
+-- checks to see if an eleemnt is displayed
+isDisplayed = fromMaybe True . fmap (/= "display: none;") . headMay . (attribute "style")
 -- TODO: Move somewhere else???
+  -- let aForm = toCursor "<form><input name=\"NOOO\" style=\"display: none;\"><input name=\"YES\"></form>"
 getInputs :: Cursor -> M.Map T.Text T.Text
 getInputs c = do
-  let isDisplayed = (fromMaybe False . (fmap (== "display: none;")) . headMay . (attribute "style"))
-      elements = filter isDisplayed (c $// element "input")
+  let elements = filter isDisplayed (c $// element "input")
       mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) elements
       pairs = map (fromMaybe "" *** fromMaybe "") mayPairs
   M.fromList $ filter ((/= "") . fst) pairs
