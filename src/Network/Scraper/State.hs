@@ -177,7 +177,8 @@ testToAbsUrl = do
 -- TODO: Move somewhere else???
 getInputs :: Cursor -> M.Map T.Text T.Text
 getInputs c = do
-  let elements = c $// element "input"
+  let isDisplayed = (fromMaybe False . (fmap (== "display: none;")) . headMay . (attribute "style"))
+      elements = filter isDisplayed (c $// element "input")
       mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) elements
       pairs = map (fromMaybe "" *** fromMaybe "") mayPairs
   M.fromList $ filter ((/= "") . fst) pairs
