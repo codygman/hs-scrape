@@ -210,7 +210,7 @@ getFormByName name = do
   return . listToMaybe  $ formList
 
 -- TODO: Move somewhere else???
-data FormAttr = Name T.Text | ActionUrl T.Text
+data FormAttr = Name T.Text | ActionUrl T.Text deriving Show
 
 -- TODO: Move somewhere else???
 getFormBy :: FormAttr -> Scraper (Maybe Cursor)
