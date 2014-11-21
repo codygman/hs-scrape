@@ -67,6 +67,9 @@ setCurrentURL u = ST.get >>= (\s -> ST.put $ s { currentURL = u })
 getCurrentURL :: Scraper(Maybe URL)
 getCurrentURL = ST.get >>= return . currentURL
 
+getCurrentHtml :: Scraper(LBS.ByteString)
+getCurrentHtml = ST.get >>= return . currentHtml
+
 -- TODO: Move somewhere else???
 -- getCurrentPage :: Shpider Page
 getCurrentCursor :: Scraper (Maybe Cursor)
