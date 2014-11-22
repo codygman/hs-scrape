@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+import qualified Data.Map              as M
 import           Network.Scraper.State
 import           Test.Tasty            (defaultMain, testGroup)
 import           Test.Tasty.HUnit
@@ -20,11 +21,19 @@ testIsDisplayedAll = testCase "testIsDisplayedAll" $ do
   assertEqual "Not Displayed (has hide and dispNone)"  False (isDisplayed dispNoneClassHidden)
   assertEqual "Is Displayed" True (isDisplayed visibleInp)
     where dispNone = toCursor "<input name=\"t\" style=\"display: none;\">"
-          classHidden = toCursor "<input name=\"t\" class=\"hide;\" style=\"display: none;\">"
+          classHidden = toCursor "<input name=\"t\" class=\"hide;\">"
           dispNoneClassHidden = toCursor "<input name=\"t\" class=\"hide;\">"
           visibleInp = toCursor "<input name=\"shown\">"
 
-tests = testGroup "All tests" [testDisplayNone, testClassHide, testIsDisplayedAll]
+testGetInputs = testCase "testGetInputs" $ do
+  assertEqual "" (getInputs form) (M.fromList [("YES","")])
+  where form = toCursor "<form><input name=\"NOOO\" style=\"display: none;\"><input name=\"YES\"></form>"
+
+tests = testGroup "All tests" [ testDisplayNone
+                              , testClassHide
+                              , testIsDisplayedAll
+                              , testGetInputs
+                              ]
 
 main :: IO ()
 main = defaultMain tests

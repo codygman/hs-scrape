@@ -29,5 +29,5 @@ test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Tests.hs
   hs-source-dirs:      tests
-  build-depends:       base, tasty, hspec, tasty-hunit, hs-scrape, xml-conduit
+  build-depends:       base, tasty, hspec, tasty-hunit, hs-scrape, xml-conduit, containers
   default-language:    Haskell2010
