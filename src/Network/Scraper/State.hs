@@ -9,7 +9,8 @@ module Network.Scraper.State (
   getFormBy,
   getCurrentHtml,
   fillForm,
-  postToForm
+  postToForm,
+  printFormNames
   ) where
 
 import           Control.Applicative
