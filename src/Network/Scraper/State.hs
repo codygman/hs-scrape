@@ -1,5 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.Scraper.State where
+module Network.Scraper.State (
+  get,
+  runScraper,
+  InpFilter (..),
+  FormAttr(..),
+  Scraper,
+  getCurrentCursor,
+  getFormBy,
+  getCurrentHtml,
+  fillForm,
+  postToForm
+  ) where
 
 import           Control.Applicative
 import           Control.Arrow                    ((***))
@@ -203,6 +214,19 @@ getVisibleInputs  c = do
   M.fromList $ filter ((/= "") . fst) pairs
   where inputs = c $// element "input"
 
+data InpFilter a = Custom ([T.Text]) | AllVisible | AllInps deriving (Show)
+
+getInputs :: InpFilter a -> Cursor -> M.Map T.Text T.Text
+getInputs (Custom paramFilterList) c = do
+  let mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) inputs
+      pairs = map (fromMaybe "" *** fromMaybe "") mayPairs
+      m = M.fromList $ filter ((/= "") . fst) pairs
+      -- filter out keys user didn't want
+  M.filterWithKey (\k _ ->  not . any (== k) $ paramFilterList) m
+  where inputs = c $// element "input"
+getInputs AllVisible c  = getVisibleInputs c
+getInputs AllInps c  = getAllInputs c
+
 getAllInputs :: Cursor -> M.Map T.Text T.Text
 getAllInputs  c = do
   let mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) inputs
@@ -253,25 +277,23 @@ getFormBy formAttr = do
           formList (FormId val) c =
             c $// element "form" >=> attributeIs "id" val
 
-getInputs True = getVisibleInputs
-getInputs False = getAllInputs
-
-fillForm :: Maybe Cursor -> Maybe [(T.Text, T.Text)] -> Bool -> [FormParam]
-fillForm form Nothing filterHidden = do
+fillForm :: Maybe Cursor -> Maybe [(T.Text, T.Text)] -> InpFilter a -> [FormParam]
+fillForm form Nothing paramFilterList = do
   -- liftIO . putStrLn $ "old inputs: " ++ show (map (attribute "class") $ filter (not . isDisplayed) form)
-  let formParams = fromMaybe (error "no params in form") (getInputs filterHidden <$> form)
+  let formParams = fromMaybe (error "no params in form") (getInputs paramFilterList <$> form)
   toWreqFormParams . M.toList $ formParams
-fillForm form (Just params) filterHidden = do
+fillForm form (Just params) paramFilterList = do
   -- putStrLn $ "filling form: " ++ show form
-  let formParams = fromMaybe (error "no params in form") (getInputs filterHidden <$> form)
+  let formParams = fromMaybe (error "no params in form") (getInputs paramFilterList <$> form)
       formParams' = addToMap params formParams
   toWreqFormParams . M.toList $ formParams'
 
 -- TODO: Move somewhere else???
 -- Takes a form name, fields to fill out in the form, then submits the form
 -- TODO: Change all[ (T.Text,T.Text)] to just be wreq formvalues... neater api anyway
-postToForm :: FormAttr -> Maybe [(T.Text,T.Text)] -> Bool -> Scraper (LBS.ByteString)
-postToForm formAttr params filterHidden = do
+postToForm :: FormAttr -> Maybe [(T.Text,T.Text)] -> InpFilter a -> Scraper (LBS.ByteString)
+postToForm formAttr params paramFilterList = do
+  liftIO . putStrLn $ "postToForm (" ++ show paramFilterList ++ ")"
   form <- getFormBy formAttr
   c <- getCurrentCursor
   case form of
@@ -282,7 +304,7 @@ postToForm formAttr params filterHidden = do
        mapM_ TIO.putStrLn $ join $ (map (attribute "name") $ (fromJust c) $// element "form")
      error ("Couldn't find form: " ++ show formAttr)
 
-  let formParams = fillForm form params filterHidden
+  let formParams = fillForm form params paramFilterList
       -- todo, this is duplicated above... delete one or the other if possible
       mActionUrl = T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
       actionUrl = fromMaybe (error "Couldn't find action url in form") mActionUrl
