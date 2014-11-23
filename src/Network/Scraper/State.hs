@@ -10,7 +10,7 @@ import           Control.Monad.Trans.Class
 import qualified Control.Monad.Trans.State.Strict as ST
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.Map                         as M
-import           Data.Maybe                       (fromJust, fromMaybe,
+import           Data.Maybe                       (fromJust, fromMaybe, isJust,
                                                    listToMaybe)
 import           Data.Monoid
 import qualified Data.Text                        as T
