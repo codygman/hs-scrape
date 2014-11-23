@@ -162,6 +162,7 @@ post urlStr params = do
   return html
 
 toAbsUrl :: URL -> Scraper(URL)
+toAbsUrl u@(URL (Absolute _) _ _) = return u
 toAbsUrl u@(URL _ _ _) = do
   hostUrl <- getCurrentURL
   let hostUrl' = fromMaybe (error errMsg) hostUrl
