@@ -294,15 +294,16 @@ fillForm form (Just params) paramFilterList = do
 -- TODO: Change all[ (T.Text,T.Text)] to just be wreq formvalues... neater api anyway
 postToForm :: FormAttr -> Maybe [(T.Text,T.Text)] -> InpFilter a -> Scraper (LBS.ByteString)
 postToForm formAttr params paramFilterList = do
-  liftIO . putStrLn $ "postToForm (" ++ show paramFilterList ++ ")"
   form <- getFormBy formAttr
   c <- getCurrentCursor
   case form of
-   Just _ -> liftIO $ putStrLn $ "Found form: " ++ show formAttr
+   Just _ -> do
+     -- liftIO $ putStrLn $ "Found form: " ++ show formAttr
+     return ()
    Nothing -> do
-     liftIO $ do
-       putStrLn "forms found: "
-       mapM_ TIO.putStrLn $ join $ (map (attribute "name") $ (fromJust c) $// element "form")
+     -- liftIO $ do
+     --   putStrLn "forms found: "
+     --   mapM_ TIO.putStrLn $ join $ (map (attribute "name") $ (fromJust c) $// element "form")
      error ("Couldn't find form: " ++ show formAttr)
 
   let formParams = fillForm form params paramFilterList
@@ -310,11 +311,11 @@ postToForm formAttr params paramFilterList = do
       mActionUrl = T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
       actionUrl = fromMaybe (error "Couldn't find action url in form") mActionUrl
 
-  liftIO $ do
-    TIO.putStrLn $ "POST " <> actionUrl
-    print formParams
+  -- liftIO $ do
+  --   TIO.putStrLn $ "POST " <> actionUrl
+  --   print formParams
 
-  getCurrentHtml >>= liftIO . LBS.writeFile "last.html"
+  -- getCurrentHtml >>= liftIO . LBS.writeFile "last.html"
 
   html <- post (T.unpack actionUrl) formParams
   return html
