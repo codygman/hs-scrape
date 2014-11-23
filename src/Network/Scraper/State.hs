@@ -181,30 +181,42 @@ testToAbsUrl = do
 hasDisplayNone el = fromMaybe False . fmap (== "display: none;") . headMay $ (attribute "style" el)
 hasHide el = fromMaybe False . fmap (T.isInfixOf "hide") . headMay $ (attribute "class" el)
 
+anyParentIsHidden el = isJust . listToMaybe . join $ map (\c -> (c $/ check (hasHide))) cs
+  where cs = ancestor el
+
 -- checks to see if an eleemnt is displayed
 -- isDisplayed el  = any (== True) $ [displayNone el, hide el]
 isDisplayed :: Cursor -> Bool
 isDisplayed el = all (== False) $
                  [ hasDisplayNone el
                  , hasHide el
+                 , anyParentIsHidden el -- this was hiding inputs on the paypal billing form
                  ]
 
 -- TODO: Move somewhere else???
-  -- let aForm = toCursor "<form><input name=\"NOOO\" style=\"display: none;\"><input name=\"YES\"></form>"
-getInputs :: Cursor -> M.Map T.Text T.Text
-getInputs c = do
-  let elements = filter isDisplayed (c $// element "input")
-      mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) elements
+ -- let aForm = toCursor "<form><input name=\"NOOO\" style=\"display: none;\"><input name=\"YES\"></form>"
+getVisibleInputs :: Cursor -> M.Map T.Text T.Text
+getVisibleInputs  c = do
+  let inputs' = filter isDisplayed inputs
+      mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) inputs'
       pairs = map (fromMaybe "" *** fromMaybe "") mayPairs
   M.fromList $ filter ((/= "") . fst) pairs
+  where inputs = c $// element "input"
+
+getAllInputs :: Cursor -> M.Map T.Text T.Text
+getAllInputs  c = do
+  let mayPairs = map (\e -> (listToMaybe $ attribute "name" e, listToMaybe $ attribute "value" e)) inputs
+      pairs = map (fromMaybe "" *** fromMaybe "") mayPairs
+  M.fromList $ filter ((/= "") . fst) pairs
+  where inputs = c $// element "input"
 
 -- test get inputs
 -- todo: Move to tests
 tgi = do
-  LBS.readFile "mismatchedinputkeyvalsform.html" >>= return . getInputs . toCursor
+  LBS.readFile "mismatchedinputkeyvalsform.html" >>= return . getAllInputs . toCursor
 
 -- TODO: Move somewhere else???
-getLoginForm url = get url >>= return . getInputs . toCursor
+getLoginForm url = get url >>= return . getAllInputs . toCursor
 
 -- TODO: Move somewhere else???
 toWreqFormParams :: [(T.Text, T.Text)] -> [FormParam]
@@ -226,7 +238,7 @@ getFormByName name = do
   return . listToMaybe  $ formList
 
 -- TODO: Move somewhere else???
-data FormAttr = Name T.Text | ActionUrl T.Text deriving Show
+data FormAttr = Name T.Text | ActionUrl T.Text | FormId T.Text deriving Show
 
 -- TODO: Move somewhere else???
 getFormBy :: FormAttr -> Scraper (Maybe Cursor)
@@ -238,31 +250,48 @@ getFormBy formAttr = do
             c $// element "form" >=> attributeIs "name" val
           formList (ActionUrl val) c =
             c $// element "form" >=> attributeIs "action" val
+          formList (FormId val) c =
+            c $// element "form" >=> attributeIs "id" val
 
-fillForm :: Maybe Cursor -> Maybe [(T.Text, T.Text)] -> [FormParam]
-fillForm form Nothing = do
-  let formParams = fromMaybe (error "no params in form") (getInputs <$> form)
+getInputs True = getVisibleInputs
+getInputs False = getAllInputs
+
+fillForm :: Maybe Cursor -> Maybe [(T.Text, T.Text)] -> Bool -> [FormParam]
+fillForm form Nothing filterHidden = do
+  -- liftIO . putStrLn $ "old inputs: " ++ show (map (attribute "class") $ filter (not . isDisplayed) form)
+  let formParams = fromMaybe (error "no params in form") (getInputs filterHidden <$> form)
   toWreqFormParams . M.toList $ formParams
-fillForm form (Just params) = do
-  let formParams = fromMaybe (error "no params in form") (getInputs <$> form)
+fillForm form (Just params) filterHidden = do
+  -- putStrLn $ "filling form: " ++ show form
+  let formParams = fromMaybe (error "no params in form") (getInputs filterHidden <$> form)
       formParams' = addToMap params formParams
-      actionUrl = fromMaybe (error "Couldn't find action url in form") $
-                  T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
   toWreqFormParams . M.toList $ formParams'
 
 -- TODO: Move somewhere else???
 -- Takes a form name, fields to fill out in the form, then submits the form
 -- TODO: Change all[ (T.Text,T.Text)] to just be wreq formvalues... neater api anyway
-postToForm :: FormAttr -> Maybe [(T.Text,T.Text)] -> Scraper (LBS.ByteString)
-postToForm formAttr params = do
+postToForm :: FormAttr -> Maybe [(T.Text,T.Text)] -> Bool -> Scraper (LBS.ByteString)
+postToForm formAttr params filterHidden = do
   form <- getFormBy formAttr
-  -- TODO: Display under debug mode
-  -- liftIO . print $ "got form by name"
-  -- TODO: Turn below into fillForm or similar that takes param
-  let formParams = fillForm form params
-      actionUrl = fromMaybe (error "Couldn't find action url in form") $
-                  T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
-  -- TODO: Display under debug mode
-  -- liftIO . print $ "posting params: \n" ++ show formParams'
+  c <- getCurrentCursor
+  case form of
+   Just _ -> liftIO $ putStrLn $ "Found form: " ++ show formAttr
+   Nothing -> do
+     liftIO $ do
+       putStrLn "forms found: "
+       mapM_ TIO.putStrLn $ join $ (map (attribute "name") $ (fromJust c) $// element "form")
+     error ("Couldn't find form: " ++ show formAttr)
+
+  let formParams = fillForm form params filterHidden
+      -- todo, this is duplicated above... delete one or the other if possible
+      mActionUrl = T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
+      actionUrl = fromMaybe (error "Couldn't find action url in form") mActionUrl
+
+  liftIO $ do
+    TIO.putStrLn $ "POST " <> actionUrl
+    print formParams
+
+  getCurrentHtml >>= liftIO . LBS.writeFile "last.html"
+
   html <- post (T.unpack actionUrl) formParams
   return html
