@@ -14,6 +14,7 @@ Inspired heavily by Shpider, relying extensively on wreq, xml-conduit, and html-
 
 # TODO
 - Make sure dependency constraints are sane/used
+- Evaulate: Use wreq form params for passing around post data/credentials
 - Create tutorials
 - Checking reddit messages example
 - Logging Into Hacker news example
