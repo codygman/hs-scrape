@@ -46,14 +46,14 @@ testIsDisplayedAll = testCase "testIsDisplayedAll" $ do
                 \<div class=\"clear\"></div>\
     \</div>"
 
-testGetInputs = testCase "testGetInputs" $ do
-  assertEqual "" (getInputs form) (M.fromList [("YES","")])
+testVisibleGetInputs = testCase "testGetInputs" $ do
+  assertEqual "" (getInputs AllVisible form) (M.fromList [("YES","")])
   where form = toCursor "<form><input name=\"NOOO\" style=\"display: none;\"><input name=\"YES\"></form>"
 
 tests = testGroup "All tests" [ testDisplayNone
                               , testClassHide
                               , testIsDisplayedAll
-                              , testGetInputs
+                              , testVisibleGetInputs
                               ]
 
 main :: IO ()
