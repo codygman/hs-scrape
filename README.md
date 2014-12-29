@@ -1,4 +1,4 @@
-# hs-scrape: Web scraping and Automation Library
+# hs-scrape: Web scraping and Automation Library [![Build Status](https://secure.travis-ci.org/codygman/hs-scrape.png)](http://travis-ci.org/codygman/hs-scrape)
 
 # About
 A simple and easy scraping automation library in Haskell.
