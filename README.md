@@ -4,7 +4,7 @@
 A simple and easy scraping automation library in Haskell.
 
 # Examples
-[Logging in to Paypal](https://github.com/codygman/hs-scrape-paypal-login)
+- [Logging in to Paypal](https://github.com/codygman/hs-scrape-paypal-login)
 
 # Tutorials
 Coming soon.
