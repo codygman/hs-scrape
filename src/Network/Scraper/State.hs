@@ -6,9 +6,14 @@ module Network.Scraper.State (
   FormAttr(..),
   Scraper,
   getCurrentCursor,
+  toCursor,
+  isDisplayed,
+  hasDisplayNone,
   getFormBy,
   getCurrentHtml,
   fillForm,
+  hasHide,
+  getInputs,
   postToForm,
   printFormNames
   ) where
