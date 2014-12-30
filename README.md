@@ -15,6 +15,8 @@ Inspired heavily by Shpider, relying extensively on wreq, xml-conduit, and html-
 # TODO
 - Make sure dependency constraints are sane/used
 - Evaulate: Use wreq form params for passing around post data/credentials
+- Allow error handler to be passed to Scraper or throw error by default if cursor can't be created?
+- (Good idea?) get (and most other things returning the ByteString response) should return the current cursor so you can chain the common scenario of going to a page and extracting an element if needed
 - Create tutorials
 - Checking reddit messages example
 - Logging Into Hacker news example
