@@ -7,7 +7,7 @@ synopsis:            Simple and easy web scraping and automation in Haskell.
 description:         
     Shpider/mechanize inspired web automation with a focus on convenience for web scraping.
     .
-    A fully functional example of logging into paypal and getting your account balance:
+    A fully functional example of logging into paypal and getting your account balance (<https://github.com/codygman/hs-scrape-paypal-login cabal buildable repo of this example>):
     .
     > import           Control.Applicative
     > import           Control.Monad
