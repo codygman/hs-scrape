@@ -349,6 +349,10 @@ postToForm formAttr params paramFilterList = do
        liftIO $ do
          putStrLn "Forms Found"
          forM_ formsInfo $ \formInfo -> do
+           -- TODO: print something out like this
+           -- <form name id action>
+           --   <input name value> -- attrs of forms
+           -- </form>
            let (fName, fId, fAction) = formInfo
            TIO.putStrLn $ "=================================================="
            TIO.putStrLn $ "name: " <> fName
