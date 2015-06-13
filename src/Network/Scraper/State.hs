@@ -196,9 +196,10 @@ post urlStr params = do
   let url' = exportURL absURL
 
   r <- liftIO $ Sesh.postWith opts sesh url' params
-  let status = show $ r ^. Wreq.responseStatus
+  -- TODO: On non 200 status look for element with "error" and print text
+  let status = r ^. Wreq.responseStatus
   whenM getCurrentDebug . liftIO $ do
-    liftIO $ TIO.putStrLn $ (T.pack "post responseStatus:  ") <> T.pack status
+    liftIO $ TIO.putStrLn $ (T.pack "post responseStatus:  ") <> T.pack (show status)
   let html = r ^. Wreq.responseBody
   setCurrentHtml html
   setCurrentCursor (toCursor html)
