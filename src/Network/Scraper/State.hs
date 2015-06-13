@@ -2,6 +2,7 @@
 module Network.Scraper.State (
   get,
   runScraper,
+  runScraperDebug,
   InpFilter (..),
   FormAttr(..),
   Scraper,
@@ -41,6 +42,7 @@ import qualified Network.Wreq.Session             as Sesh
 import           Network.Wreq.Types
 import           Safe
 import           Text.HTML.DOM                    (parseLBS)
+import qualified Text.XML                         as XML
 import           Text.XML.Cursor
 import qualified Text.XML.Cursor.Generic          as CG
 
@@ -50,6 +52,7 @@ data ScraperState =
      , currentCursor  :: Maybe Cursor
      , currentSession :: Session
      , currentURL     :: Maybe URL
+     , currentDebug   :: Bool
      } deriving (Show)
 
 type Scraper = ST.StateT ScraperState IO
@@ -63,11 +66,27 @@ withInitialState callback = withSession $ \s -> do
                         , currentCursor = Nothing
                         , currentSession = s
                         , currentURL = Nothing
+                        , currentDebug = False
+                        }
+  callback initialState
+
+-- TODO: Figure out how to get rid of this
+withInitialDbgState :: (ScraperState -> IO a) -> IO a
+withInitialDbgState callback = withSession $ \s -> do
+  let initialState = PS { currentOptions = Wreq.defaults
+                        , currentHtml = ("" :: LBS.ByteString)
+                        , currentCursor = Nothing
+                        , currentSession = s
+                        , currentURL = Nothing
+                        , currentDebug = True
                         }
   callback initialState
 
 runScraper :: Scraper a -> IO a
 runScraper k = withInitialState (evalScraperWith k)
+
+runScraperDebug :: Scraper a -> IO a
+runScraperDebug k = withInitialDbgState (evalScraperWith k)
 
 evalScraperWith :: Scraper a -> ScraperState -> IO a
 evalScraperWith k s =  ST.evalStateT k s
@@ -86,6 +105,9 @@ getCurrentURL = ST.get >>= return . currentURL
 
 getCurrentHtml :: Scraper(LBS.ByteString)
 getCurrentHtml = ST.get >>= return . currentHtml
+
+getCurrentDebug :: Scraper (Bool)
+getCurrentDebug = ST.get >>= return . currentDebug
 
 -- TODO: Move somewhere else???
 -- getCurrentPage :: Shpider Page
@@ -144,8 +166,8 @@ get :: String -> Scraper (LBS.ByteString)
 get urlStr = do
   let url = fromMaybe (error ("invalid urlStr: " ++ urlStr)) (importURL urlStr)
       urlStr' = exportURL url
-  -- TODO: Display under debug mode
-  -- liftIO . putStrLn $ "GET: " ++ url ++ "\n"
+  whenM getCurrentDebug . liftIO $ do
+    liftIO . putStrLn $ "GET: " <> exportURL url <> "\n"
   opts <- ST.gets currentOptions
   sesh <- ST.gets currentSession
 
@@ -167,12 +189,16 @@ post urlStr params = do
   -- TODO: Display under debug mode
   -- liftIO . print $ params
   -- TODO: Make minimal repro and ask question... not sure how to print something so polymorphic
-  -- liftIO . putStrLn $ "POST: " ++ url ++ "\n"
   let url = fromMaybe (error ("invalid urlStr: " ++ urlStr)) (importURL urlStr)
+  whenM getCurrentDebug . liftIO $ do
+    liftIO . putStrLn $ "POST: " ++ exportURL url ++ "\n"
   absURL <- toAbsUrl url
   let url' = exportURL absURL
 
   r <- liftIO $ Sesh.postWith opts sesh url' params
+  let status = show $ r ^. Wreq.responseStatus
+  whenM getCurrentDebug . liftIO $ do
+    liftIO $ TIO.putStrLn $ (T.pack "post responseStatus:  ") <> T.pack status
   let html = r ^. Wreq.responseBody
   setCurrentHtml html
   setCurrentCursor (toCursor html)
@@ -268,6 +294,7 @@ getFormByName name = do
   return . listToMaybe  $ formList
 
 -- TODO: Move somewhere else???
+
 data FormAttr = Name T.Text | ActionUrl T.Text | FormId T.Text deriving Show
 
 -- TODO: Move somewhere else???
@@ -294,6 +321,10 @@ fillForm form (Just params) paramFilterList = do
       formParams' = addToMap params formParams
   toWreqFormParams . M.toList $ formParams'
 
+
+whenM :: (Monad m) => m Bool -> m () -> m ()
+whenM b x = b >>= flip when x
+
 -- TODO: Move somewhere else???
 -- Takes a form name, fields to fill out in the form, then submits the form
 -- TODO: Change all[ (T.Text,T.Text)] to just be wreq formvalues... neater api anyway
@@ -303,12 +334,28 @@ postToForm formAttr params paramFilterList = do
   c <- getCurrentCursor
   case form of
    Just _ -> do
-     -- liftIO $ putStrLn $ "Found form: " ++ show formAttr
+     whenM getCurrentDebug . liftIO $ do
+       putStrLn $ "Found form: " ++ show formAttr
      return ()
    Nothing -> do
-     -- liftIO $ do
-     --   putStrLn "forms found: "
-     --   mapM_ TIO.putStrLn $ join $ (map (attribute "name") $ (fromJust c) $// element "form")
+     let forms = (fromJust c) $// element "form"
+         getFormInfo form = ( fromMaybe "" . listToMaybe $ attribute "name" form
+                            , fromMaybe "" . listToMaybe $ attribute "id" form
+                            , fromMaybe "" . listToMaybe $ attribute "action" form
+                            )
+         formsInfo = map getFormInfo forms
+
+     whenM getCurrentDebug . liftIO $ do
+       liftIO $ do
+         putStrLn "Forms Found"
+         forM_ formsInfo $ \formInfo -> do
+           let (fName, fId, fAction) = formInfo
+           TIO.putStrLn $ "=================================================="
+           TIO.putStrLn $ "name: " <> fName
+           TIO.putStrLn $ "id: " <> fId
+           TIO.putStrLn $ "action: " <> fAction
+           TIO.putStrLn $ "=================================================="
+
      error ("Couldn't find form: " ++ show formAttr)
 
   let formParams = fillForm form params paramFilterList
@@ -316,9 +363,9 @@ postToForm formAttr params paramFilterList = do
       mActionUrl = T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
       actionUrl = fromMaybe (error "Couldn't find action url in form") mActionUrl
 
-  -- liftIO $ do
-  --   TIO.putStrLn $ "POST " <> actionUrl
-  --   print formParams
+  whenM getCurrentDebug . liftIO $ do
+    TIO.putStrLn $ "POST " <> actionUrl
+    print formParams
 
   -- getCurrentHtml >>= liftIO . LBS.writeFile "last.html"
 
