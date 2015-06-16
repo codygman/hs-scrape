@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Scraper.State (
+  module Text.XML.Cursor,
   get,
   runScraper,
   runScraperDebug,
