@@ -25,6 +25,7 @@ import           Control.Lens                     ((^.))
 import           Control.Monad
 import           Control.Monad.IO.Class           (liftIO)
 import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Except
 import qualified Control.Monad.Trans.State.Strict as ST
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.Map                         as M
@@ -55,7 +56,7 @@ data ScraperState =
      , currentDebug   :: Bool
      } deriving (Show)
 
-type Scraper = ST.StateT ScraperState IO
+type Scraper a = ExceptT String (ST.StateT ScraperState IO) a
 
 toCursor = fromDocument . parseLBS
 
@@ -82,63 +83,66 @@ withInitialDbgState callback = withSession $ \s -> do
                         }
   callback initialState
 
-runScraper :: Scraper a -> IO a
+-- runScraper2
+--   :: ExceptT e (ST.StateT ScraperState IO) a -> IO (Either e a)
 runScraper k = withInitialState (evalScraperWith k)
 
-runScraperDebug :: Scraper a -> IO a
+-- runScraperDebug :: Scraper a -> IO a
 runScraperDebug k = withInitialDbgState (evalScraperWith k)
 
-evalScraperWith :: Scraper a -> ScraperState -> IO a
-evalScraperWith k s =  ST.evalStateT k s
+evalScraperWith
+  :: Monad m => ExceptT e (ST.StateT s m) a -> s -> m (Either e a)
+evalScraperWith k s = (ST.evalStateT (runExceptT k) s)
 
 -- TODO: Move somewhere else???
 setCurrentOptions :: Wreq.Options -> Scraper ()
 setCurrentOptions o = do
-   scraper <- ST.get
-   ST.put $ scraper { currentOptions = o }
+   scraper <- lift ST.get
+   lift $ ST.put $ scraper { currentOptions = o }
+   return ()
 
 setCurrentURL :: Maybe URL -> Scraper ()
-setCurrentURL u = ST.get >>= (\s -> ST.put $ s { currentURL = u })
+setCurrentURL u = lift $ ST.get >>= (\s -> ST.put $ s { currentURL = u })
 
 getCurrentURL :: Scraper(Maybe URL)
-getCurrentURL = ST.get >>= return . currentURL
+getCurrentURL = lift $ ST.get >>= return . currentURL
 
 getCurrentHtml :: Scraper(LBS.ByteString)
-getCurrentHtml = ST.get >>= return . currentHtml
+getCurrentHtml = lift $ ST.get >>= return . currentHtml
 
 getCurrentDebug :: Scraper (Bool)
-getCurrentDebug = ST.get >>= return . currentDebug
+getCurrentDebug = lift $ ST.get >>= return . currentDebug
 
 -- TODO: Move somewhere else???
 -- getCurrentPage :: Shpider Page
 getCurrentCursor :: Scraper (Maybe Cursor)
 getCurrentCursor = do
-   scraper <- ST.get
+   scraper <- lift ST.get
    return $ currentCursor scraper
 
 -- TODO: Move somewhere else???
 getCurrentSession :: Scraper (Session)
 getCurrentSession = do
-   scraper <- ST.get
+   scraper <- lift ST.get
    return $ currentSession scraper
 
 -- TODO: Move somewhere else???
 setCurrentSession :: Session -> Scraper ()
 setCurrentSession s = do
-   scraper <- ST.get
-   ST.put $ scraper { currentSession = s}
+   scraper <- lift ST.get
+   lift $ ST.put $ scraper { currentSession = s}
 
 -- TODO: Move somewhere else???
 setCurrentCursor :: Cursor -> Scraper ( )
 setCurrentCursor c = do
-   scraper <- ST.get
-   ST.put $ scraper { currentCursor = Just c }
+   scraper <- lift ST.get
+   lift $ ST.put $ scraper { currentCursor = Just c }
 
 -- TODO: Move somewhere else???
 setCurrentHtml :: LBS.ByteString -> Scraper ()
 setCurrentHtml html = do
-   scraper <- ST.get
-   ST.put $ scraper { currentHtml = html }
+   scraper <- lift ST.get
+   lift $ ST.put $ scraper { currentHtml = html }
 
 -- TODO: Move somewhere else???
 formShortInfo' f = formInfo'
@@ -168,8 +172,8 @@ get urlStr = do
       urlStr' = exportURL url
   whenM getCurrentDebug . liftIO $ do
     liftIO . putStrLn $ "GET: " <> exportURL url <> "\n"
-  opts <- ST.gets currentOptions
-  sesh <- ST.gets currentSession
+  opts <- lift $ ST.gets currentOptions
+  sesh <- lift $ ST.gets currentSession
 
 
   r <- liftIO $ Sesh.getWith opts sesh urlStr'
@@ -182,8 +186,8 @@ get urlStr = do
 -- TODO: Move somewhere else???
 post :: Postable a => String -> a -> Scraper (LBS.ByteString)
 post urlStr params = do
-  opts <- ST.gets currentOptions
-  sesh <- ST.gets currentSession
+  opts <- lift $ ST.gets currentOptions
+  sesh <- lift $ ST.gets currentSession
   -- TODO: should take an actual url.. makes api more difficult...
   -- TODO: Make url absolute by storing host of current site
   -- TODO: Display under debug mode
