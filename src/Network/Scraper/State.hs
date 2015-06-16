@@ -83,11 +83,10 @@ withInitialDbgState callback = withSession $ \s -> do
                         }
   callback initialState
 
--- runScraper2
---   :: ExceptT e (ST.StateT ScraperState IO) a -> IO (Either e a)
+runScraper :: Scraper a -> IO (Either e a)
 runScraper k = withInitialState (evalScraperWith k)
 
--- runScraperDebug :: Scraper a -> IO a
+runScraperDebug :: Scraper a -> IO (Either e a)
 runScraperDebug k = withInitialDbgState (evalScraperWith k)
 
 evalScraperWith
