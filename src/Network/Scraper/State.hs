@@ -160,62 +160,72 @@ ppTuple = \(x,y) -> "[" <> x <> "]" <> ": " <> y
 printFormNames :: Scraper ()
 printFormNames = do
   c <- getCurrentCursor
-  let c' = fromMaybe (error "No cursor set") c
-      forms = c' $// element "form"
-      formInfo = map (ppTuple . formShortInfo') forms
-  liftIO $ mapM_ (TIO.putStrLn) formInfo
+  case c of
+    Just c' -> do
+      let forms = c' $// element "form"
+          formInfo = map (ppTuple . formShortInfo') forms
+      liftIO $ mapM_ (TIO.putStrLn) formInfo
+    Nothing -> throwE "No cursor set"
 
 -- TODO: Move somewhere else???
 get :: String -> Scraper (LBS.ByteString)
 get urlStr = do
-  let url = fromMaybe (error ("invalid urlStr: " ++ urlStr)) (importURL urlStr)
-      urlStr' = exportURL url
-  whenM getCurrentDebug . liftIO $ do
-    liftIO . putStrLn $ "GET: " <> exportURL url <> "\n"
-  opts <- lift $ ST.gets currentOptions
-  sesh <- lift $ ST.gets currentSession
+  case (importURL urlStr) of
+    Just url -> do
+      let urlStr' = exportURL url
 
+      whenM getCurrentDebug . liftIO $ do
+        liftIO . putStrLn $ "GET: " <> urlStr' <> "\n"
 
-  r <- liftIO $ Sesh.getWith opts sesh urlStr'
-  let html = r ^. Wreq.responseBody
-  setCurrentURL (Just url)
-  setCurrentHtml html
-  setCurrentCursor (toCursor html)
-  return html
+      opts <- lift $ ST.gets currentOptions
+      sesh <- lift $ ST.gets currentSession
+
+      r <- liftIO $ Sesh.getWith opts sesh urlStr'
+      let html = r ^. Wreq.responseBody
+      setCurrentURL (Just url)
+      setCurrentHtml html
+      setCurrentCursor (toCursor html)
+      return html
+    Nothing -> throwE ("invalid urlStr: " ++ urlStr)
 
 -- TODO: Move somewhere else???
 post :: Postable a => String -> a -> Scraper (LBS.ByteString)
 post urlStr params = do
-  opts <- lift $ ST.gets currentOptions
-  sesh <- lift $ ST.gets currentSession
-  -- TODO: should take an actual url.. makes api more difficult...
-  -- TODO: Make url absolute by storing host of current site
-  -- TODO: Display under debug mode
-  -- liftIO . print $ params
-  -- TODO: Make minimal repro and ask question... not sure how to print something so polymorphic
-  let url = fromMaybe (error ("invalid urlStr: " ++ urlStr)) (importURL urlStr)
-  whenM getCurrentDebug . liftIO $ do
-    liftIO . putStrLn $ "POST: " ++ exportURL url ++ "\n"
-  absURL <- toAbsUrl url
-  let url' = exportURL absURL
+  case (importURL urlStr) of
+    Just url -> do
+        opts <- lift $ ST.gets currentOptions
+        sesh <- lift $ ST.gets currentSession
+        -- TODO: should take an actual url.. makes api more difficult...
+        -- TODO: Make url absolute by storing host of current site
+        -- TODO: Display under debug mode
+        -- liftIO . print $ params
+        -- TODO: Make minimal repro and ask question... not sure how to print something so polymorphic
+        whenM getCurrentDebug . liftIO $ do
+          liftIO . putStrLn $ "POST: " ++ exportURL url ++ "\n"
+        absURL <- toAbsUrl url
+        let url' = exportURL absURL
 
-  r <- liftIO $ Sesh.postWith opts sesh url' params
-  -- TODO: On non 200 status look for element with "error" and print text
-  let status = r ^. Wreq.responseStatus
-  whenM getCurrentDebug . liftIO $ do
-    liftIO $ TIO.putStrLn $ (T.pack "post responseStatus:  ") <> T.pack (show status)
-  let html = r ^. Wreq.responseBody
-  setCurrentHtml html
-  setCurrentCursor (toCursor html)
-  return html
+        r <- liftIO $ Sesh.postWith opts sesh url' params
+        -- TODO: On non 200 status look for element with "error" and print text
+        let status = r ^. Wreq.responseStatus
+        whenM getCurrentDebug . liftIO $ do
+          liftIO $ TIO.putStrLn $ (T.pack "post responseStatus:  ") <> T.pack (show status)
+        let html = r ^. Wreq.responseBody
+        setCurrentHtml html
+        setCurrentCursor (toCursor html)
+        return html
+
+    Nothing -> throwE ("invalid urlStr: " ++ urlStr)
 
 toAbsUrl :: URL -> Scraper(URL)
 toAbsUrl u@(URL (Absolute _) _ _) = return u
 toAbsUrl u@(URL _ _ _) = do
   hostUrl <- getCurrentURL
-  let hostUrl' = fromMaybe (error errMsg) hostUrl
-      absUrl = u { url_type = url_type hostUrl' }
-  return absUrl
+  case hostUrl of
+    Just hostUrl' -> do
+      let absUrl = u { url_type = url_type hostUrl' }
+      return absUrl
+    Nothing -> throwE errMsg
     where errMsg = "You must 'get' or 'post' to something before making urls absolute"
 -- toAbsUrl u@(URL _ _ _) = return u
 
@@ -294,9 +304,11 @@ addToMap pairs m = foldl (\m ->(\(k,v) -> M.insert k v m)) m pairs
 getFormByName :: T.Text -> Scraper (Maybe Cursor)
 getFormByName name = do
   c <- getCurrentCursor
-  let c' = fromMaybe (error "Nocursor set") c
-      formList = c' $// element "form" >=> attributeIs "name" name
-  return . listToMaybe  $ formList
+  case c of
+    Nothing -> throwE "No cursor set"
+    Just c' -> do
+      let formList = c' $// element "form" >=> attributeIs "name" name
+      return . listToMaybe $ formList
 
 -- TODO: Move somewhere else???
 
@@ -306,26 +318,34 @@ data FormAttr = Name T.Text | ActionUrl T.Text | FormId T.Text deriving Show
 getFormBy :: FormAttr -> Scraper (Maybe Cursor)
 getFormBy formAttr = do
   c <- getCurrentCursor
-  let c' = fromMaybe (error "Nocursor set") c
-  return . listToMaybe  $ formList formAttr c'
-    where formList (Name val) c =
-            c $// element "form" >=> attributeIs "name" val
-          formList (ActionUrl val) c =
-            c $// element "form" >=> attributeIs "action" val
-          formList (FormId val) c =
-            c $// element "form" >=> attributeIs "id" val
+  case c of
+    Nothing -> throwE "No cursor set"
+    Just c' ->
+      return . listToMaybe  $ formList formAttr c'
+      where formList (Name val) c =
+              c $// element "form" >=> attributeIs "name" val
+            formList (ActionUrl val) c =
+              c $// element "form" >=> attributeIs "action" val
+            formList (FormId val) c =
+              c $// element "form" >=> attributeIs "id" val
 
 fillForm :: Maybe Cursor -> Maybe [(T.Text, T.Text)] -> InpFilter a -> [FormParam]
 fillForm form Nothing paramFilterList = do
   -- liftIO . putStrLn $ "old inputs: " ++ show (map (attribute "class") $ filter (not . isDisplayed) form)
-  let formParams = fromMaybe (error "no params in form") (getInputs paramFilterList <$> form)
-  toWreqFormParams . M.toList $ formParams
+  case (getInputs paramFilterList <$> form) of
+    -- TODO: Should I change this to throwE?
+    -- Nothing -> throwE "no params in form"
+    Nothing -> error "no params in form"
+    Just formParams -> toWreqFormParams . M.toList $ formParams
 fillForm form (Just params) paramFilterList = do
   -- putStrLn $ "filling form: " ++ show form
-  let formParams = fromMaybe (error "no params in form") (getInputs paramFilterList <$> form)
-      formParams' = addToMap params formParams
-  toWreqFormParams . M.toList $ formParams'
-
+  case (getInputs paramFilterList <$> form) of
+    -- TODO: Should I change this to throwE?
+    -- Nothing -> throwE "no params in form"
+    Nothing -> error "no params in form"
+    Just formParams -> do
+      let formParams' = addToMap params formParams
+      toWreqFormParams . M.toList $ formParams'
 
 whenM :: (Monad m) => m Bool -> m () -> m ()
 whenM b x = b >>= flip when x
@@ -365,18 +385,20 @@ postToForm formAttr params paramFilterList = do
            TIO.putStrLn $ "action: " <> fAction
            TIO.putStrLn $ "=================================================="
 
-     error ("Couldn't find form: " ++ show formAttr)
+     throwE ("Couldn't find form: " ++ show formAttr)
 
   let formParams = fillForm form params paramFilterList
       -- todo, this is duplicated above... delete one or the other if possible
       mActionUrl = T.strip <$> (join $ listToMaybe <$> attribute "action" <$> form)
-      actionUrl = fromMaybe (error "Couldn't find action url in form") mActionUrl
 
-  whenM getCurrentDebug . liftIO $ do
-    TIO.putStrLn $ "POST " <> actionUrl
-    print formParams
+  case mActionUrl of
+    Nothing -> throwE "Couldn't find action url in form"
+    Just actionUrl -> do
+      whenM getCurrentDebug . liftIO $ do
+        TIO.putStrLn $ "POST " <> actionUrl
+        print formParams
 
-  -- getCurrentHtml >>= liftIO . LBS.writeFile "last.html"
+        -- getCurrentHtml >>= liftIO . LBS.writeFile "last.html"
 
-  html <- post (T.unpack actionUrl) formParams
-  return html
+      html <- post (T.unpack actionUrl) formParams
+      return html
