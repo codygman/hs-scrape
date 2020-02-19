@@ -57,7 +57,8 @@ type Scraper = ST.StateT ScraperState IO
 toCursor = fromDocument . parseLBS
 
 withInitialState :: (ScraperState -> IO a) -> IO a
-withInitialState callback = withSession $ \s -> do
+withInitialState callback = do
+  s <- Sesh.newSession
   let initialState = PS { currentOptions = Wreq.defaults
                         , currentHtml = ("" :: LBS.ByteString)
                         , currentCursor = Nothing
