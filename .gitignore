@@ -1,0 +1,4 @@
+.stack-work/
+hs-scrape.cabal
+stack.yaml.lock
+*~
