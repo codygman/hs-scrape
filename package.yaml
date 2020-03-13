@@ -1,0 +1,82 @@
+name:                hs-scrape
+version:             0.1.0.1
+github:              "httpscodygman/hs-scrape"
+license:             MIT
+author:              "Cody Goodman"
+maintainer:          "codygman.consulting@gmail.com"
+
+# Metadata used when publishing your package
+synopsis:            Simple and easy web scraping and automation in Haskell.
+category:            Web
+
+description: |
+    Shpider/mechanize inspired web automation with a focus on convenience for web scraping.
+    .
+    A fully functional example of logging into paypal and getting your account balance (<https://github.com/codygman/hs-scrape-paypal-login cabal buildable repo of this example>):
+    .
+    > import           Control.Applicative
+    > import           Control.Monad
+    > import           Control.Monad.IO.Class
+    > import           Data.Maybe
+    > import           Data.Monoid
+    > import qualified Data.Text              as T
+    > import           Data.Text.IO           (putStrLn)
+    > import           Network.Scraper.State
+    > import           Prelude                hiding (putStrLn)
+    > import           Text.XML.Cursor        (attributeIs, content, element, ($//),
+    >                                          (&/))
+    > 
+    > getPaypalBalance cursor = fromMaybe (error "Failed to get balance") $ listToMaybe $
+    >                           cursor $//
+    >                           element "div" >=> attributeIs "class" "balanceNumeral" &/
+    >                           element "span" >=> attributeIs "class" "h2" &/
+    >                           content
+    > 
+    > main = do
+    >   runScraper $ do
+    >     get "https://www.paypal.com/login"
+    > 
+    >     postToForm (Name "login_form") (Just creds) AllVisible
+    > 
+    >     get "https://www.paypal.com/myaccount/home"
+    > 
+    >     cursor <- liftM (fromMaybe (error "Couldn't get cursor")) getCurrentCursor
+    >     liftIO . putStrLn $ "Your Paypal balance is: " <> getPaypalBalance cursor
+    > 
+    >   where creds =  [ ("login_email", "email@example.com") -- put your credentials here
+    >                  , ("login_password", "password")]
+    .
+
+dependencies:
+- base >= 4.7 && < 5
+- bytestring
+- text
+- wreq
+- html-conduit
+- xml-conduit
+- safe
+- transformers
+- lens
+- containers
+- url
+- hspec
+- retry
+- data-default
+- exceptions
+
+library:
+  source-dirs: src
+
+tests:
+  hs-scrape-test:
+    main:                Tests.hs
+    source-dirs:         tests
+    dependencies:
+    - hs-scrape
+    - base
+    - tasty
+    - hspec
+    - tasty-hunit
+    - hs-scrape
+    - xml-conduit
+    - containers
